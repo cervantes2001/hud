@@ -26,20 +26,23 @@
 </head>
 <body>
 
+  <!-- VIEW 1: MAIN MENU LEAGUE SELECTION -->
   <div id="hubView" class="screen active">
     <div class="league-banner">MONISTREAM HUD STATION</div>
     <div class="main-text" id="hubLabel">NBA</div>
-    <div class="ticker-line" style="color: #ffffff;">[ SWIPE OR USE ARROWS TO BROWSE ]</div>
-    <div class="footer-tip">Tap/Enter to load live games</div>
+    <div class="ticker-line" style="color: #ffffff;">[ SWIPE TO BROWSE LEAGUES ]</div>
+    <div class="footer-tip">Tap to select league • Hold to exit</div>
   </div>
 
+  <!-- VIEW 1.5: NESTED SOCCER HUB -->
   <div id="soccerHubView" class="screen">
     <div class="league-banner">SOCCER LEAGUE TRACKER</div>
     <div class="main-text" id="soccerHubLabel">PREMIER LEAGUE (EPL)</div>
-    <div class="ticker-line" style="color: #00caff;">[ SELECT COMPETITION COMPONENT ]</div>
-    <div class="footer-tip">Tap to enter feed • Hold to go back</div>
+    <div class="ticker-line" style="color: #00caff;">[ SWIPE TO BROWSE SECTIONS ]</div>
+    <div class="footer-tip">Tap to load games • Long Hold to go back</div>
   </div>
 
+  <!-- VIEW 2: REAL-TIME MATCH TICKER -->
   <div id="ticketView" class="screen">
     <div class="league-banner" id="activeLeagueTitle">LOADING TRACKER...</div>
     <div class="score-container" id="gameScoreContainer">
@@ -48,14 +51,15 @@
     </div>
     <div id="playTicker" class="ticker-line">Reading live possession strings...</div>
     <div id="winProbabilityWrapper" class="prob-bar"><div id="winProbFill" class="prob-fill"></div></div>
-    <div class="footer-tip">Tap to enter analytics engine • Hold to exit</div>
+    <div class="footer-tip">Tap to open splits • Long Hold to exit games</div>
   </div>
 
+  <!-- VIEW 3: FOUR-PAGE REVOLVING DETAILS STATION -->
   <div id="statsView" class="screen">
     <div class="league-banner" id="statsMatchupTitle">MATCHUP DETAILS</div>
     <div class="main-text" id="statsPageHeader">LOADING CARD...</div>
     <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; min-width: 75%;">Parsing data blocks...</div>
-    <div class="footer-tip" id="statsPageFooter">Swipe to turn page • Hold to exit details</div>
+    <div class="footer-tip" id="statsPageFooter">Swipe to turn page • Tap to return to ticker</div>
   </div>
 
   <script>
@@ -149,21 +153,13 @@
       } catch (e) { return "SCHEDULED"; }
     }
 
-    // Smart Glass Luminance Corrector Engine
-    // Calculates team color visibility score; if too dark to see on glass lens, shifts it to neon bright
     function ensureColorVisibility(hex, defaultFallback) {
       if (!hex) return defaultFallback;
       hex = hex.replace('#', '');
-      
-      // Convert raw hex mapping to RGB components
       const r = parseInt(hex.substring(0, 2), 16);
       const g = parseInt(hex.substring(2, 4), 16);
       const b = parseInt(hex.substring(4, 6), 16);
-      
-      // Traditional YIQ relative brightness formula
       const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-      
-      // If brightness metric drops below visibility baseline threshold, amplify color depth strings
       if (brightness < 45) {
         return '#' + Math.min(r + 100, 255).toString(16).padStart(2, '0') +
                      Math.min(g + 100, 255).toString(16).padStart(2, '0') +
@@ -185,15 +181,11 @@
       const currentAwayScore = competitorAway.score || "0";
       const currentHomeScore = competitorHome.score || "0";
 
-      // HARVEST LIVE HEX COLOR NODES DIRECTLY FROM STREAM PIPELINES
       const rawAwayColor = competitorAway.team ? competitorAway.team.color : null;
       const rawHomeColor = competitorHome.team ? competitorHome.team.color : null;
-      
-      // Pass hex colors through visibility filter engine rules
       const awayColor = ensureColorVisibility(rawAwayColor, "00caff");
       const homeColor = ensureColorVisibility(rawHomeColor, "00ff66");
 
-      // Build Split Color HUD Presentation HTML Layout Content Strings
       document.getElementById('gameScoreContainer').innerHTML = `
          <span style="color: ${awayColor};">${awayName.toUpperCase()} ${currentAwayScore}</span>
          <span style="color: #ffffff;">-</span>
@@ -239,7 +231,7 @@
         winProbWrapper.style.display = "block";
         const homeProb = comp.situation.lastPlay.probability.homeWinPercentage * 100;
         document.getElementById('winProbFill').style.width = `${homeProb}%`;
-        document.getElementById('winProbFill').style.backgroundColor = homeColor; // Match probability meter to home team brand color
+        document.getElementById('winProbFill').style.backgroundColor = homeColor;
       } else { winProbWrapper.style.display = "none"; }
     }
 
@@ -339,6 +331,7 @@
       }
     }
 
+    // ADVANCED GESTURE CONTROLLER DISPATCHER
     function inputDispatcher(intent) {
       if (activeWindow === 'hubView') {
         if (intent === 'next') { currentLeagueIdx = (currentLeagueIdx + 1) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
@@ -354,6 +347,7 @@
         else if (intent === 'select') { fetchLiveLeagueData(); }
         else if (intent === 'escape') { changeView('hubView'); }
       }
+      // FIXED TICKET ENGINE VIEW: Differentiates quick navigation scrolling vs hard exit escape commands
       else if (activeWindow === 'ticketView') {
         if (intent === 'next') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx + 1) % liveGamesList.length; renderActiveScoreboardItem(); } }
         else if (intent === 'prev') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx - 1 + liveGamesList.length) % liveGamesList.length; renderActiveScoreboardItem(); } }
@@ -363,10 +357,12 @@
       else if (activeWindow === 'statsView') {
         if (intent === 'next') { currentStatsPage = (currentStatsPage + 1) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
         else if (intent === 'prev') { currentStatsPage = (currentStatsPage - 1 + TOTAL_STATS_PAGES) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
+        // Tap to step cleanly backwards into the ticker viewport panel safely
         else if (intent === 'select' || intent === 'escape') { changeView('ticketView'); renderActiveScoreboardItem(); }
       }
     }
 
+    // Physical and Digital Keyboard Bindings Mapping
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') inputDispatcher('next');
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') inputDispatcher('prev');
@@ -374,12 +370,17 @@
       if (e.key === 'Escape') inputDispatcher('escape');
     });
 
+    // NEURAL BAND INTEL FILTER: Distinguishes quick swiping gestures from continuous muscle holding
     let startX = 0, startT = 0;
     window.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; startT = Date.now(); });
     window.addEventListener('touchend', e => {
       let deltaX = startX - e.changedTouches[0].screenX;
       let duration = Date.now() - startT;
-      if (duration > 600 && Math.abs(deltaX) < 10) { inputDispatcher('escape'); return; }
+      
+      // LONG HOLD GESTURE MATCH (Middle-Finger to Thumb) -> Executes absolute backward exit path routing maps cleanly
+      if (duration > 550 && Math.abs(deltaX) < 12) { inputDispatcher('escape'); return; }
+      
+      // SWIPE AND TAP ACCELERATORS (Thumb-on-Index side swipes or single Index-Thumb snaps)
       if (deltaX > 40) inputDispatcher('next');
       else if (deltaX < -40) inputDispatcher('prev');
       else if (Math.abs(deltaX) < 8) inputDispatcher('select');
