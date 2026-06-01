@@ -7,8 +7,12 @@
   <style>
     /* Absolute black canvas engineered explicitly for high-contrast smart lens projection */
     body { background-color: #000000; color: #ffffff; font-family: 'Courier New', monospace; margin: 0; padding: 15px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
-    .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; }
+    .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; position: relative; }
     .active { display: flex; }
+    
+    /* Hardware-Bypassing Back Button Indicator */
+    .hud-back-btn { position: absolute; top: 5px; left: 10px; font-size: 13px; color: #ff0055; font-weight: bold; border: 1px solid #ff0055; padding: 2px 6px; border-radius: 3px; display: none; text-transform: uppercase; letter-spacing: 1px; }
+    .hud-back-btn.focused { background-color: #ff0055; color: #000000; box-shadow: 0 0 8px #ff0055; }
     
     /* High-visibility typography optimized for fast visual tracking and glancing */
     .league-banner { font-size: 14px; color: #aaaaaa; letter-spacing: 2px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; text-align: center; }
@@ -31,19 +35,21 @@
     <div class="league-banner">MONISTREAM HUD STATION</div>
     <div class="main-text" id="hubLabel">NBA</div>
     <div class="ticker-line" style="color: #ffffff;">[ SWIPE TO BROWSE LEAGUES ]</div>
-    <div class="footer-tip">Index Tap to enter • Middle Tap to back out</div>
+    <div class="footer-tip">Index Tap to enter slot line</div>
   </div>
 
   <!-- VIEW 1.5: NESTED SOCCER HUB -->
   <div id="soccerHubView" class="screen">
+    <div id="backSoccer" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner">SOCCER LEAGUE TRACKER</div>
     <div class="main-text" id="soccerHubLabel">PREMIER LEAGUE (EPL)</div>
-    <div class="ticker-line" style="color: #00caff;">[ SWIPE TO BROWSE SECTIONS ]</div>
-    <div class="footer-tip">Index Tap to load • Middle Tap to go back</div>
+    <div class="ticker-line" style="color: #00caff;">[ SWIPE TO SECTIONS ]</div>
+    <div class="footer-tip">Swipe all the way Left to focus BACK</div>
   </div>
 
   <!-- VIEW 2: REAL-TIME MATCH TICKER -->
   <div id="ticketView" class="screen">
+    <div id="backTicket" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner" id="activeLeagueTitle">LOADING TRACKER...</div>
     <div class="score-container" id="gameScoreContainer">
        <span id="awayTeamPart">SYNCHRONIZING</span>
@@ -51,15 +57,16 @@
     </div>
     <div id="playTicker" class="ticker-line">Reading live possession strings...</div>
     <div id="winProbabilityWrapper" class="prob-bar"><div id="winProbFill" class="prob-fill"></div></div>
-    <div class="footer-tip">Index Tap for analytics • Middle Tap to exit games</div>
+    <div class="footer-tip">Swipe Left to focus BACK • Tap center for splits</div>
   </div>
 
   <!-- VIEW 3: FOUR-PAGE REVOLVING DETAILS STATION -->
   <div id="statsView" class="screen">
+    <div id="backStats" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner" id="statsMatchupTitle">MATCHUP DETAILS</div>
     <div class="main-text" id="statsPageHeader">LOADING CARD...</div>
     <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; min-width: 75%;">Parsing data blocks...</div>
-    <div class="footer-tip" id="statsPageFooter">Swipe to turn page • Middle Tap to exit details</div>
+    <div class="footer-tip" id="statsPageFooter">Swipe Left to focus BACK • Swipe Right to turn pages</div>
   </div>
 
   <script>
@@ -87,11 +94,24 @@
     let activeWindow = 'hubView';
     let currentStatsPage = 0; 
     const TOTAL_STATS_PAGES = 4;
+    
+    // Focus State Matrix: if true, your next select gesture executes a clean escape command
+    let backButtonFocused = false;
 
     function changeView(targetId) {
       activeWindow = targetId;
+      backButtonFocused = false; // Reset hotspot tracker on screen switch
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById(targetId).classList.add('active');
+      
+      const currentView = document.getElementById(targetId);
+      currentView.classList.add('active');
+      
+      // Update element visibility markers
+      const activeBackBtn = currentView.querySelector('.hud-back-btn');
+      if (activeBackBtn) {
+        activeBackBtn.style.display = 'block';
+        activeBackBtn.classList.remove('focused');
+      }
     }
 
     function fetchLiveLeagueData() {
@@ -107,12 +127,12 @@
         displayTitle = activeSlug.toUpperCase();
       }
 
+      changeView('ticketView');
       document.getElementById('activeLeagueTitle').innerText = `${displayTitle} MATCHUPS`;
       document.getElementById('gameScoreContainer').innerHTML = `<span style="color:#ffffff;">FETCHING FEED...</span>`;
       document.getElementById('playTicker').innerText = "Connecting to network pipelines...";
       document.getElementById('winProbabilityWrapper').style.display = "none";
       
-      changeView('ticketView');
       liveGamesList = [];
 
       const fetchPromises = targetUrls.map(url => 
@@ -253,7 +273,7 @@
       const homeColor = ensureColorVisibility(rawHomeColor, "00ff66");
 
       document.getElementById('statsMatchupTitle').innerText = `${gameItem.name.toUpperCase()}`;
-      document.getElementById('statsPageFooter').innerText = `PAGE ${currentStatsPage + 1} OF 4 • SWIPE TO FLIP`;
+      document.getElementById('statsPageFooter').innerText = `PAGE ${currentStatsPage + 1} OF 4 • SWIPE RIGHT TO FLIP`;
 
       if (currentStatsPage === 0) {
         document.getElementById('statsPageHeader').innerText = "SEASON SPLITS";
@@ -331,8 +351,34 @@
       }
     }
 
-    // STEP BACK ROUTING INTELLIGENCE: Single-tap middle finger mapping overrides
+    // Comprehensive Navigation Director Engine with Button Intercept Logic
+    function updateBackButtonVisuals() {
+      const activeBackBtn = document.querySelector('.screen.active .hud-back-btn');
+      if (!activeBackBtn) return;
+      if (backButtonFocused) {
+        activeBackBtn.classList.add('focused');
+      } else {
+        activeBackBtn.classList.remove('focused');
+      }
+    }
+
+    function executeEscapeRoute() {
+      if (activeWindow === 'soccerHubView') { changeView('hubView'); }
+      else if (activeWindow === 'ticketView') { if (leagues[currentLeagueIdx] === "soccer") changeView('soccerHubView'); else changeView('hubView'); }
+      else if (activeWindow === 'statsView') { changeView('ticketView'); renderActiveScoreboardItem(); }
+    }
+
     function inputDispatcher(intent) {
+      if (intent === 'escape') {
+        executeEscapeRoute();
+        return;
+      }
+
+      if (intent === 'select' && backButtonFocused) {
+        executeEscapeRoute();
+        return;
+      }
+
       if (activeWindow === 'hubView') {
         if (intent === 'next') { currentLeagueIdx = (currentLeagueIdx + 1) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
         else if (intent === 'prev') { currentLeagueIdx = (currentLeagueIdx - 1 + leagues.length) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
@@ -342,58 +388,54 @@
         }
       }
       else if (activeWindow === 'soccerHubView') {
-        if (intent === 'next') { activeSubLeagueIdx = (activeSubLeagueIdx + 1) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
-        else if (intent === 'prev') { activeSubLeagueIdx = (activeSubLeagueIdx - 1 + soccerLeagues.length) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
+        if (intent === 'next') { backButtonFocused = false; activeSubLeagueIdx = (activeSubLeagueIdx + 1) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
+        else if (intent === 'prev') { backButtonFocused = false; activeSubLeagueIdx = (activeSubLeagueIdx - 1 + soccerLeagues.length) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
         else if (intent === 'select') { fetchLiveLeagueData(); }
-        else if (intent === 'escape') { changeView('hubView'); }
       }
       else if (activeWindow === 'ticketView') {
-        if (intent === 'next') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx + 1) % liveGamesList.length; renderActiveScoreboardItem(); } }
-        else if (intent === 'prev') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx - 1 + liveGamesList.length) % liveGamesList.length; renderActiveScoreboardItem(); } }
+        if (intent === 'next') { backButtonFocused = false; if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx + 1) % liveGamesList.length; renderActiveScoreboardItem(); } }
+        else if (intent === 'prev') { backButtonFocused = false; if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx - 1 + liveGamesList.length) % liveGamesList.length; renderActiveScoreboardItem(); } }
         else if (intent === 'select') { currentStatsPage = 0; renderRevolvingStatsEngine(); }
-        else if (intent === 'escape') { if (leagues[currentLeagueIdx] === "soccer") changeView('soccerHubView'); else changeView('hubView'); }
       }
       else if (activeWindow === 'statsView') {
-        if (intent === 'next') { currentStatsPage = (currentStatsPage + 1) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
-        else if (intent === 'prev') { currentStatsPage = (currentStatsPage - 1 + TOTAL_STATS_PAGES) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
-        // Middle-finger pinch drops cleanly back onto the active team carousel sheet instantly
-        else if (intent === 'select' || intent === 'escape') { changeView('ticketView'); renderActiveScoreboardItem(); }
+        if (intent === 'next') { backButtonFocused = false; currentStatsPage = (currentStatsPage + 1) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
+        else if (intent === 'prev') { backButtonFocused = false; currentStatsPage = (currentStatsPage - 1 + TOTAL_STATS_PAGES) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
       }
+      updateBackButtonVisuals();
     }
 
-    // Physical Hardware Controls
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') inputDispatcher('next');
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') inputDispatcher('prev');
       if (e.key === 'Enter') inputDispatcher('select');
-      // Backspace or Escape keyboard mappings simulate middle finger pinch commands
-      if (e.key === 'Escape' || e.key === 'Backspace') inputDispatcher('escape');
     });
 
-    // Neural band gesture interception stream loop
-    let startX = 0, startT = 0;
-    window.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; startT = Date.now(); });
+    let startX = 0;
+    window.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; });
     window.addEventListener('touchend', e => {
       let deltaX = startX - e.changedTouches[0].screenX;
-      let duration = Date.now() - startT;
       
-      // BROWSER HISTORICAL INTERCEPT: Direct navigation mapping for the band's back command
-      if (duration > 40 && duration < 350 && Math.abs(deltaX) < 8 && e.changedTouches[0].target.tagName !== 'SPAN') {
-         // If a simple browser click is received from a middle-pinch, step backward instantly
-      }
-
-      if (deltaX > 40) inputDispatcher('next');
-      else if (deltaX < -40) inputDispatcher('prev');
-      else {
-        // Evaluate tap locations or target triggers natively
-        if (Math.abs(deltaX) < 8) {
-          // If you tap anywhere on the left 30% of the display panel window frame, simulate a Back escape route command
-          if (e.changedTouches[0].screenX < (window.innerWidth * 0.35)) {
-            inputDispatcher('escape');
-          } else {
-            inputDispatcher('select');
-          }
+      // Swipe Right -> Moves forward to next item
+      if (deltaX > 40) {
+        inputDispatcher('next');
+      } 
+      // Swipe Left -> Triggers contextual focus check logic
+      else if (deltaX < -40) {
+        if (activeWindow !== 'hubView' && !backButtonFocused) {
+          // First left swipe highlights the custom `< BACK` hotspot button on your frame screen
+          backButtonFocused = true;
+          updateBackButtonVisuals();
+        } else if (backButtonFocused) {
+          // A second consecutive left swipe acts as a fallback scroll action
+          backButtonFocused = false;
+          inputDispatcher('prev');
+        } else {
+          inputDispatcher('prev');
         }
+      } 
+      // Single standard Index finger tap confirmation selection
+      else if (Math.abs(deltaX) < 8) {
+        inputDispatcher('select');
       }
     });
   </script>
