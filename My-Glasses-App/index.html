@@ -2,52 +2,94 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, maximum-scale=1.0, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, maximum-scale=1.5, initial-scale=1.0, user-scalable=no">
   <title>MoniStream Sports HUD Pro</title>
   <style>
     /* Absolute black canvas engineered explicitly for high-contrast smart lens projection */
-    body { background-color: #000000; color: #ffffff; font-family: 'Courier New', monospace; margin: 0; padding: 15px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
-    .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+    body { 
+      background-color: #000000; 
+      color: #ffffff; 
+      font-family: 'Courier New', monospace; 
+      margin: 0; 
+      padding: 0; /* Clear all margins to utilize absolute edge boundaries */
+      overflow: hidden; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      height: 100vh; 
+      width: 100vw;
+      box-sizing: border-box; 
+      transition: transform 0.2s cubic-bezier(0.1, 0.8, 0.3, 1); /* Ultra-smooth digital zoom scaling transitions */
+    }
+
+    /* GLOBAL DISPLAY RESIZING MATRIX ENGINE */
+    body.standard-zoom { transform: scale(1.0); }
+    body.extreme-zoom { transform: scale(1.35); } /* Amplifies screen fill profile by an additional 35% on demand */
+
+    .screen { 
+      display: none; 
+      width: 100%; 
+      height: 100%; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      position: relative;
+      padding: 10px;
+      box-sizing: border-box;
+    }
     .active { display: flex; }
     
     /* Hardware-Bypassing Back Button Indicator */
-    .hud-back-btn { position: absolute; top: 5px; left: 10px; font-size: 13px; color: #ff0055; font-weight: bold; border: 1px solid #ff0055; padding: 2px 6px; border-radius: 3px; display: none; text-transform: uppercase; letter-spacing: 1px; }
-    .hud-back-btn.focused { background-color: #ff0055; color: #000000; box-shadow: 0 0 8px #ff0055; }
+    .hud-back-btn { 
+      position: absolute; 
+      top: 10px; 
+      left: 15px; 
+      font-size: 16px; /* Scaled Up */
+      color: #ff0055; 
+      font-weight: bold; 
+      border: 2px solid #ff0055; 
+      padding: 4px 10px; 
+      border-radius: 4px; 
+      display: none; 
+      text-transform: uppercase; 
+      letter-spacing: 1px; 
+      background: #000;
+      z-index: 999;
+    }
+    .hud-back-btn.focused { background-color: #ff0055; color: #000000; box-shadow: 0 0 15px #ff0055; }
     
-    /* High-visibility typography optimized for fast visual tracking and glancing */
-    .league-banner { font-size: 14px; color: #aaaaaa; letter-spacing: 2px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; text-align: center; }
-    .main-text { font-size: 24px; font-weight: bold; text-align: center; margin: 10px 0; color: #00caff; text-shadow: 0px 2px 4px rgba(0,0,0,0.9); max-width: 95%; line-height: 1.3; }
-    .ticker-line { font-size: 15px; color: #00ff66; text-align: center; max-width: 90%; font-weight: bold; line-height: 1.5; }
+    /* Amplified Typography Classes Optimized to fill Lens Micro-Displays completely */
+    .league-banner { font-size: 18px; color: #aaaaaa; letter-spacing: 3px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; text-align: center; }
+    .main-text { font-size: 34px; font-weight: bold; text-align: center; margin: 15px 0; color: #00caff; text-shadow: 0px 3px 6px rgba(0,0,0,0.9); width: 100%; line-height: 1.2; letter-spacing: -1px; }
+    .ticker-line { font-size: 20px; color: #00ff66; text-align: center; width: 95%; font-weight: bold; line-height: 1.4; }
     
-    /* Dynamic scoreboard container styling for color-injected layouts */
-    .score-container { display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; text-align: center; margin: 10px 0; gap: 8px; text-shadow: 0px 2px 4px rgba(0,0,0,0.9); }
+    /* Max Screen-Fill Scoreboard Matrix Container */
+    .score-container { display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; text-align: center; margin: 15px 0; gap: 12px; text-shadow: 0px 3px 6px rgba(0,0,0,0.9); width: 100%; }
     
     /* Live situational probability meter */
-    .prob-bar { width: 80%; background: #222; height: 6px; border-radius: 3px; margin-top: 15px; position: relative; overflow: hidden; display: none; }
+    .prob-bar { width: 90%; background: #222; height: 10px; border-radius: 5px; margin-top: 20px; position: relative; overflow: hidden; display: none; }
     .prob-fill { height: 100%; background: #00caff; width: 50%; transition: width 0.5s ease; }
-    .footer-tip { font-size: 11px; color: #666666; margin-top: 15px; text-transform: uppercase; text-align: center; }
+    .footer-tip { font-size: 13px; color: #555555; margin-top: 20px; text-transform: uppercase; text-align: center; letter-spacing: 1px; }
   </style>
 </head>
-<body>
+<body class="standard-zoom">
 
-  <!-- VIEW 1: MAIN MENU LEAGUE SELECTION -->
   <div id="hubView" class="screen active">
     <div class="league-banner">MONISTREAM HUD STATION</div>
     <div class="main-text" id="hubLabel">NBA</div>
     <div class="ticker-line" style="color: #ffffff;">[ SWIPE TO BROWSE LEAGUES ]</div>
-    <div class="footer-tip">Index Tap to enter slot line</div>
+    <div class="footer-tip">Index Tap to enter • Double Tap to Zoom</div>
   </div>
 
-  <!-- VIEW 1.5: NESTED SOCCER HUB -->
   <div id="soccerHubView" class="screen">
     <div id="backSoccer" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner">SOCCER LEAGUE TRACKER</div>
     <div class="main-text" id="soccerHubLabel">PREMIER LEAGUE (EPL)</div>
     <div class="ticker-line" style="color: #00caff;">[ SWIPE TO SECTIONS ]</div>
-    <div class="footer-tip">Swipe all the way Left to focus BACK</div>
+    <div class="footer-tip">Swipe Left to focus BACK • Double Tap to Zoom</div>
   </div>
 
-  <!-- VIEW 2: REAL-TIME MATCH TICKER -->
   <div id="ticketView" class="screen">
     <div id="backTicket" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner" id="activeLeagueTitle">LOADING TRACKER...</div>
@@ -57,15 +99,14 @@
     </div>
     <div id="playTicker" class="ticker-line">Reading live possession strings...</div>
     <div id="winProbabilityWrapper" class="prob-bar"><div id="winProbFill" class="prob-fill"></div></div>
-    <div class="footer-tip">Swipe Left to focus BACK • Tap center for splits</div>
+    <div class="footer-tip">Swipe Left to focus BACK • Tap for splits</div>
   </div>
 
-  <!-- VIEW 3: FOUR-PAGE REVOLVING DETAILS STATION -->
   <div id="statsView" class="screen">
     <div id="backStats" class="hud-back-btn">&lt; BACK</div>
     <div class="league-banner" id="statsMatchupTitle">MATCHUP DETAILS</div>
     <div class="main-text" id="statsPageHeader">LOADING CARD...</div>
-    <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; min-width: 75%;">Parsing data blocks...</div>
+    <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; width: 90%; font-size: 19px;">Parsing data blocks...</div>
     <div class="footer-tip" id="statsPageFooter">Swipe Left to focus BACK • Swipe Right to turn pages</div>
   </div>
 
@@ -94,19 +135,16 @@
     let activeWindow = 'hubView';
     let currentStatsPage = 0; 
     const TOTAL_STATS_PAGES = 4;
-    
-    // Focus State Matrix: if true, your next select gesture executes a clean escape command
     let backButtonFocused = false;
 
     function changeView(targetId) {
       activeWindow = targetId;
-      backButtonFocused = false; // Reset hotspot tracker on screen switch
+      backButtonFocused = false; 
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       
       const currentView = document.getElementById(targetId);
       currentView.classList.add('active');
       
-      // Update element visibility markers
       const activeBackBtn = currentView.querySelector('.hud-back-btn');
       if (activeBackBtn) {
         activeBackBtn.style.display = 'block';
@@ -208,7 +246,7 @@
 
       document.getElementById('gameScoreContainer').innerHTML = `
          <span style="color: ${awayColor};">${awayName.toUpperCase()} ${currentAwayScore}</span>
-         <span style="color: #ffffff;">-</span>
+         <span style="color: #ffffff; padding: 0 4px;">-</span>
          <span style="color: ${homeColor};">${currentHomeScore} ${homeName.toUpperCase()}</span>
       `;
 
@@ -264,8 +302,8 @@
       const competitorAway = comp.competitors[1];
       const competitorHome = comp.competitors[0];
       
-      const awayLabel = competitorAway.team ? (competitorAway.team.abbreviation || "AWAY") : "AWAY";
-      const homeLabel = competitorHome.team ? (competitorHome.team.abbreviation || "HOME") : "HOME";
+      const awayLabel = competitorAway.team ? (competitorAway.team.abbreviation || competitorAway.team.name) : "AWAY";
+      const homeLabel = competitorHome.team ? (competitorHome.team.abbreviation || competitorHome.team.name) : "HOME";
 
       const rawAwayColor = competitorAway.team ? competitorAway.team.color : null;
       const rawHomeColor = competitorHome.team ? competitorHome.team.color : null;
@@ -300,7 +338,7 @@
         let outputMarkup = "";
 
         if (leagues[currentLeagueIdx] === "soccer" && comp.scoringPlays && comp.scoringPlays.length > 0) {
-          outputMarkup = `<div style="font-size: 13px; color: #aaaaaa; margin-bottom: 5px;">GOALS SCORED</div>`;
+          outputMarkup = `<div style="font-size: 17px; color: #aaaaaa; margin-bottom: 5px;">GOALS SCORED</div>`;
           comp.scoringPlays.forEach(play => {
             const scorer = play.athlete ? play.athlete.displayName : "Player";
             const teamPrefix = play.team ? (play.team.abbreviation || "") : "";
@@ -319,7 +357,7 @@
           });
         } 
         else if (competitorAway.leaders && competitorAway.leaders.length > 0) {
-          outputMarkup = `<div style="font-size: 13px; color: #aaaaaa; margin-bottom: 5px;">SEASON LEADERS</div>`;
+          outputMarkup = `<div style="font-size: 17px; color: #aaaaaa; margin-bottom: 5px;">SEASON LEADERS</div>`;
           const awayPointsNode = competitorAway.leaders.find(l => l.name === "points");
           if (awayPointsNode && awayPointsNode.leaders && awayPointsNode.leaders[0]) {
             outputMarkup += `<span style="color: ${awayColor};">${awayLabel} PTS:</span> ${awayPointsNode.leaders[0].athlete.shortName} (${awayPointsNode.leaders[0].displayValue})<br>`;
@@ -351,7 +389,18 @@
       }
     }
 
-    // Comprehensive Navigation Director Engine with Button Intercept Logic
+    // Dynamic Hardware Toggle Utility
+    function toggleDigitalZoomState() {
+      const bNode = document.body;
+      if (bNode.classList.contains('standard-zoom')) {
+        bNode.classList.remove('standard-zoom');
+        bNode.classList.add('extreme-zoom');
+      } else {
+        bNode.classList.remove('extreme-zoom');
+        bNode.classList.add('standard-zoom');
+      }
+    }
+
     function updateBackButtonVisuals() {
       const activeBackBtn = document.querySelector('.screen.active .hud-back-btn');
       if (!activeBackBtn) return;
@@ -369,15 +418,9 @@
     }
 
     function inputDispatcher(intent) {
-      if (intent === 'escape') {
-        executeEscapeRoute();
-        return;
-      }
-
-      if (intent === 'select' && backButtonFocused) {
-        executeEscapeRoute();
-        return;
-      }
+      if (intent === 'escape') { executeEscapeRoute(); return; }
+      if (intent === 'zoom') { toggleDigitalZoomState(); return; }
+      if (intent === 'select' && backButtonFocused) { executeEscapeRoute(); return; }
 
       if (activeWindow === 'hubView') {
         if (intent === 'next') { currentLeagueIdx = (currentLeagueIdx + 1) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
@@ -408,32 +451,34 @@
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') inputDispatcher('next');
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') inputDispatcher('prev');
       if (e.key === 'Enter') inputDispatcher('select');
+      if (e.key === ' ') inputDispatcher('zoom'); // Spacebar scales zoom parameters natively on desktop
     });
 
-    let startX = 0;
+    let startX = 0, lastTapTime = 0;
     window.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; });
     window.addEventListener('touchend', e => {
       let deltaX = startX - e.changedTouches[0].screenX;
+      let currentTime = Date.now();
+      let tapInterval = currentTime - lastTapTime;
       
-      // Swipe Right -> Moves forward to next item
-      if (deltaX > 40) {
-        inputDispatcher('next');
-      } 
-      // Swipe Left -> Triggers contextual focus check logic
+      // NEURAL BAND DOUBLE-TAP RECOGNIZER: Two rapid thumb-snaps toggles the display aspect expansion instantly
+      if (Math.abs(deltaX) < 8 && tapInterval > 40 && tapInterval < 300) {
+        lastTapTime = 0; // Reset
+        inputDispatcher('zoom');
+        return;
+      }
+      if (Math.abs(deltaX) < 8) { lastTapTime = currentTime; }
+
+      if (deltaX > 40) { inputDispatcher('next'); } 
       else if (deltaX < -40) {
         if (activeWindow !== 'hubView' && !backButtonFocused) {
-          // First left swipe highlights the custom `< BACK` hotspot button on your frame screen
           backButtonFocused = true;
           updateBackButtonVisuals();
         } else if (backButtonFocused) {
-          // A second consecutive left swipe acts as a fallback scroll action
           backButtonFocused = false;
           inputDispatcher('prev');
-        } else {
-          inputDispatcher('prev');
-        }
+        } else { inputDispatcher('prev'); }
       } 
-      // Single standard Index finger tap confirmation selection
       else if (Math.abs(deltaX) < 8) {
         inputDispatcher('select');
       }
