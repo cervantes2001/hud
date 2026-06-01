@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, maximum-scale=1.5, initial-scale=1.0, user-scalable=no">
+  <title>MoniStream Sports HUD Pro</title>
+  <style>
+    body { 
+      background-color: #000000; 
+      color: #ffffff; 
+      font-family: 'Courier New', monospace; 
+      margin: 0; 
+      padding: 0; 
+      overflow: hidden; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      height: 100vh; 
+      width: 100vw;
+      box-sizing: border-box; 
+      transition: transform 0.2s ease;
+    }
+
+    body.standard-zoom { transform: scale(1.0); }
+    body.extreme-zoom { transform: scale(1.35); }
+
+    .screen { 
+      display: none; 
+      width: 100%; 
+      height: 100%; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      position: relative;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .active { display: flex; }
+    
+    /* Top Gesture Notification Banner */
+    .gesture-tag {
+      position: absolute;
+      top: 10px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 3px;
+      opacity: 0.5;
+      color: #ff0055; 
+      border: 1px solid #ff0055;
+    }
+    
+    .league-banner { font-size: 18px; color: #aaaaaa; letter-spacing: 3px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; text-align: center; }
+    .main-text { font-size: 34px; font-weight: bold; text-align: center; margin: 15px 0; color: #00caff; text-shadow: 0px 3px 6px rgba(0,0,0,0.9); width: 100%; line-height: 1.2; letter-spacing: -1px; }
+    .ticker-line { font-size: 20px; color: #00ff66; text-align: center; width: 95%; font-weight: bold; line-height: 1.4; }
+    
+    .score-container { display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; text-align: center; margin: 15px 0; gap: 12px; text-shadow: 0px 3px 6px rgba(0,0,0,0.9); width: 100%; }
+    
+    .prob-bar { width: 90%; background: #222; height: 10px; border-radius: 5px; margin-top: 20px; position: relative; overflow: hidden; display: none; }
+    .prob-fill { height: 100%; background: #00caff; width: 50%; transition: width 0.5s ease; }
+    .footer-tip { font-size: 13px; color: #555555; margin-top: 20px; text-transform: uppercase; text-align: center; letter-spacing: 1px; }
+  </style>
+</head>
+<body class="standard-zoom">
+
+  <!-- VIEW 1: MAIN MENU LEAGUE SELECTION -->
+  <div id="hubView" class="screen active">
+    <div class="league-banner">MONISTREAM HUD STATION</div>
+    <div class="main-text" id="hubLabel">NBA</div>
+    <div class="ticker-line" style="color: #ffffff;">[ SWIPE HORIZONTALLY TO BROWSE ]</div>
+    <div class="footer-tip">Tap Screen to Open League • Double Tap to Zoom</div>
+  </div>
+
+  <!-- VIEW 1.5: NESTED SOCCER HUB -->
+  <div id="soccerHubView" class="screen">
+    <div class="gesture-tag">↑ SWIPE UP = BACK</div>
+    <div class="league-banner">SOCCER LEAGUE TRACKER</div>
+    <div class="main-text" id="soccerHubLabel">PREMIER LEAGUE (EPL)</div>
+    <div class="ticker-line" style="color: #00caff;">[ SWIPE HORIZONTALLY TO SCROLL ]</div>
+    <div class="footer-tip">Tap to Load Matches • Swipe Up to Return Home</div>
+  </div>
+
+  <!-- VIEW 2: REAL-TIME MATCH TICKER -->
+  <div id="ticketView" class="screen">
+    <div class="gesture-tag">↑ SWIPE UP = BACK</div>
+    <div class="league-banner" id="activeLeagueTitle">LOADING TRACKER...</div>
+    <div class="score-container" id="gameScoreContainer">
+       <span id="awayTeamPart">SYNCHRONIZING</span>
+       <span style="color: #ffffff; padding: 0 4px;">-</span>
+       <span style="color: #00ff66;">FEED...</span>
+    </div>
+    <div id="playTicker" class="ticker-line">Reading live possession strings...</div>
+    <div id="winProbabilityWrapper" class="prob-bar"><div id="winProbFill" class="prob-fill"></div></div>
+    <div class="footer-tip">Tap to Open Stats Splits • Swipe Up to Exit Games</div>
+  </div>
+
+  <!-- VIEW 3: FOUR-PAGE REVOLVING DETAILS STATION -->
+  <div id="statsView" class="screen">
+    <div class="gesture-tag">↑ SWIPE UP = BACK</div>
+    <div class="league-banner" id="statsMatchupTitle">MATCHUP DETAILS</div>
+    <div class="main-text" id="statsPageHeader">LOADING CARD...</div>
+    <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; width: 90%; font-size: 19px;">Parsing data blocks...</div>
+    <div class="footer-tip" id="statsPageFooter">Tap to Turn Pages • Swipe Up to Close Stats</div>
+  </div>
+
+  <script>
+    const endpointConfig = {
+      nba: ["https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"],
+      wnba: ["https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard"],
+      nfl: ["https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"],
+      nhl: ["https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard"]
+    };
+
+    const soccerLeagues = [
+      { name: "PREMIER LEAGUE (EPL)", url: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard" },
+      { name: "LA LIGA (SPAIN)", url: "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard" },
+      { name: "CHAMPIONS LEAGUE", url: "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard" },
+      { name: "FIFA WORLD CUP", url: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard" }
+    ];
+
+    const leagues = ["nba", "wnba", "soccer", "nfl", "nhl"];
+    let currentLeagueIdx = 0;
+    let activeSubLeagueIdx = 0; 
+    
+    let liveGamesList = [];
+    let currentGameIdx = 0;
+    
+    let activeWindow = 'hubView';
+    let currentStatsPage = 0; 
+    const TOTAL_STATS_PAGES = 4;
+
+    function changeView(targetId) {
+      activeWindow = targetId;
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(targetId).classList.add('active');
+    }
+
+    function fetchLiveLeagueData() {
+      const activeSlug = leagues[currentLeagueIdx];
+      let targetUrls = [];
+      let displayTitle = "";
+
+      if (activeSlug === "soccer") {
+        targetUrls = [soccerLeagues[activeSubLeagueIdx].url];
+        displayTitle = soccerLeagues[activeSubLeagueIdx].name;
+      } else {
+        targetUrls = endpointConfig[activeSlug];
+        displayTitle = activeSlug.toUpperCase();
+      }
+
+      changeView('ticketView');
+      document.getElementById('activeLeagueTitle').innerText = `${displayTitle} MATCHUPS`;
+      document.getElementById('gameScoreContainer').innerHTML = `<span style="color:#ffffff;">FETCHING FEED...</span>`;
+      document.getElementById('playTicker').innerText = "Connecting to network pipelines...";
+      document.getElementById('winProbabilityWrapper').style.display = "none";
+      
+      liveGamesList = [];
+
+      const fetchPromises = targetUrls.map(url => 
+        fetch(url)
+          .then(res => res.json())
+          .then(data => { 
+            if (data && data.events && data.events.length > 0) {
+              liveGamesList = liveGamesList.concat(data.events); 
+            }
+          })
+      );
+
+      Promise.allSettled(fetchPromises).then(() => {
+        if (liveGamesList.length > 0) {
+          currentGameIdx = 0;
+          renderActiveScoreboardItem();
+        } else {
+          document.getElementById('gameScoreContainer').innerHTML = `<span style="color:#aaaaaa;">NO ACTIVE GAMES</span>`;
+          document.getElementById('playTicker').innerText = "Competition is currently in off-season or between rounds.";
+        }
+      });
+    }
+
+    function formatToLocalTime(isoString, includeTime = true) {
+      try {
+        const gameDate = new Date(isoString);
+        if (isNaN(gameDate.getTime())) return "SCHEDULED";
+        const month = gameDate.getMonth() + 1;
+        const day = gameDate.getDate();
+        if (!includeTime) return `${month}/${day}`;
+        
+        let hours = gameDate.getHours();
+        const minutes = gameDate.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; 
+        return `${month}/${day} - ${hours}:${minutes} ${ampm}`;
+      } catch (e) { return "SCHEDULED"; }
+    }
+
+    function ensureColorVisibility(hex, defaultFallback) {
+      if (!hex) return defaultFallback;
+      hex = hex.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+      if (brightness < 45) {
+        return '#' + Math.min(r + 100, 255).toString(16).padStart(2, '0') +
+                     Math.min(g + 100, 255).toString(16).padStart(2, '0') +
+                     Math.min(b + 100, 255).toString(16).padStart(2, '0');
+      }
+      return '#' + hex;
+    }
+
+    function renderActiveScoreboardItem() {
+      if (!liveGamesList || liveGamesList.length === 0 || !liveGamesList[currentGameIdx]) return;
+      const gameItem = liveGamesList[currentGameIdx];
+      
+      const comp = gameItem.competitions[0];
+      const competitorAway = comp.competitors[1];
+      const competitorHome = comp.competitors[0];
+      
+      const awayName = competitorAway.team ? (competitorAway.team.abbreviation || competitorAway.team.name) : "AWAY";
+      const homeName = competitorHome.team ? (competitorHome.team.abbreviation || competitorHome.team.name) : "HOME";
+      const currentAwayScore = competitorAway.score || "0";
+      const currentHomeScore = competitorHome.score || "0";
+
+      const rawAwayColor = competitorAway.team ? competitorAway.team.color : null;
+      const rawHomeColor = competitorHome.team ? competitorHome.team.color : null;
+      const awayColor = ensureColorVisibility(rawAwayColor, "00caff");
+      const homeColor = ensureColorVisibility(rawHomeColor, "00ff66");
+
+      document.getElementById('gameScoreContainer').innerHTML = `
+         <span style="color: ${awayColor};">${awayName.toUpperCase()} ${currentAwayScore}</span>
+         <span style="color: #ffffff; padding: 0 4px;">-</span>
+         <span style="color: ${homeColor};">${currentHomeScore} ${homeName.toUpperCase()}</span>
+      `;
+
+      let playString = "";
+      const gameState = gameItem.status.type.state;
+      
+      if (gameState === "pre") {
+        playString = `START: ${formatToLocalTime(gameItem.date, true)}`;
+        document.getElementById('playTicker').style.color = "#00caff";
+      } else if (gameState === "post") {
+        playString = `FINAL - ${formatToLocalTime(gameItem.date, false)}`;
+        document.getElementById('playTicker').style.color = "#aaaaaa";
+      } else {
+        playString = `STATUS: ${gameItem.status.type.shortDetail || "LIVE"}`;
+        document.getElementById('playTicker').style.color = "#00ff66";
+      }
+
+      const activeSlug = leagues[currentLeagueIdx];
+      if (gameState === "in") {
+        if (activeSlug === "nba" || activeSlug === "wnba") {
+          const period = gameItem.status.period;
+          const totalAwayScore = parseInt(currentAwayScore) || 0;
+          const totalHomeScore = parseInt(currentHomeScore) || 0;
+          if (period >= 4 && Math.abs(totalAwayScore - totalHomeScore) <= 5) {
+            playString = `🚨 CRUNCH TIME • ${gameItem.status.type.detail.toUpperCase()}`;
+            document.getElementById('playTicker').style.color = "#ff0055";
+          } else { playString = gameItem.status.type.detail.toUpperCase(); }
+        } else {
+          if (gameItem.status.type.detail) playString = gameItem.status.type.detail.toUpperCase();
+        }
+      }
+      
+      if (comp.situation && comp.situation.lastPlay && gameState === "in") {
+        playString = comp.situation.lastPlay.text;
+      }
+      document.getElementById('playTicker').innerText = playString;
+
+      const winProbWrapper = document.getElementById('winProbabilityWrapper');
+      if (gameState === "in" && comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
+        winProbWrapper.style.display = "block";
+        const homeProb = comp.situation.lastPlay.probability.homeWinPercentage * 100;
+        document.getElementById('winProbFill').style.width = `${homeProb}%`;
+        document.getElementById('winProbFill').style.backgroundColor = homeColor;
+      } else { winProbWrapper.style.display = "none"; }
+    }
+
+    function renderRevolvingStatsEngine() {
+      changeView('statsView');
+      if (liveGamesList.length === 0 || !liveGamesList[currentGameIdx]) return;
+
+      const gameItem = liveGamesList[currentGameIdx];
+      const comp = gameItem.competitions[0];
+      const competitorAway = comp.competitors[1];
+      const competitorHome = comp.competitors[0];
+      
+      const awayLabel = competitorAway.team ? (competitorAway.team.abbreviation || competitorAway.team.name) : "AWAY";
+      const homeLabel = competitorHome.team ? (competitorHome.team.abbreviation || competitorHome.team.name) : "HOME";
+
+      const rawAwayColor = competitorAway.team ? competitorAway.team.color : null;
+      const rawHomeColor = competitorHome.team ? competitorHome.team.color : null;
+      const awayColor = ensureColorVisibility(rawAwayColor, "00caff");
+      const homeColor = ensureColorVisibility(rawHomeColor, "00ff66");
+
+      document.getElementById('statsMatchupTitle').innerText = `${gameItem.name.toUpperCase()}`;
+      document.getElementById('statsPageFooter').innerText = `PAGE ${currentStatsPage + 1} OF 4 • TAP TO FLIP`;
+
+      if (currentStatsPage === 0) {
+        document.getElementById('statsPageHeader').innerText = "SEASON SPLITS";
+        let awayRec = "0-0", awayRoad = "0-0", homeRec = "0-0", homeLocal = "0-0", streak = "";
+        if (competitorAway.records && competitorAway.records.length > 0) {
+          awayRec = (competitorAway.records.find(r => r.type === "total") || competitorAway.records[0]).summary;
+          const roadNode = competitorAway.records.find(r => r.type === "road");
+          if (roadNode) awayRoad = roadNode.summary;
+        }
+        if (competitorHome.records && competitorHome.records.length > 0) {
+          const totalNode = competitorHome.records.find(r => r.type === "total") || competitorHome.records[0];
+          homeRec = totalNode.summary;
+          if (totalNode.streakText) streak = ` [${totalNode.streakText}]`;
+          const homeNode = competitorHome.records.find(r => r.type === "home");
+          if (homeNode) homeLocal = homeNode.summary;
+        }
+        document.getElementById('subStatsLine').innerHTML = `
+          <span style="color: ${awayColor};">${awayLabel}:</span> ${awayRec} (Road: ${awayRoad})<br>
+          <span style="color: ${homeColor};">${homeLabel}:</span> ${homeRec} (Home: ${homeLocal})${streak}
+        `;
+      }
+      else if (currentStatsPage === 1) {
+        document.getElementById('statsPageHeader').innerText = "MATCH LEADERS";
+        let outputMarkup = "";
+
+        if (leagues[currentLeagueIdx] === "soccer" && comp.scoringPlays && comp.scoringPlays.length > 0) {
+          outputMarkup = `<div style="font-size: 17px; color: #aaaaaa; margin-bottom: 5px;">GOALS SCORED</div>`;
+          comp.scoringPlays.forEach(play => {
+            const scorer = play.athlete ? play.athlete.displayName : "Player";
+            const teamPrefix = play.team ? (play.team.abbreviation || "") : "";
+            const timeStr = play.clock ? play.clock.displayValue : "";
+            const rowColor = (teamPrefix === homeLabel) ? homeColor : awayColor;
+            outputMarkup += `<span style="color: ${rowColor};">[${teamPrefix}]</span> ${scorer} (${timeStr})<br>`;
+          });
+        } 
+        else if (comp.leaders && comp.leaders.length > 0 && comp.leaders[0].leaders) {
+          comp.leaders.forEach(category => {
+            const catName = category.displayName || "Stats";
+            if (category.leaders && category.leaders[0]) {
+              const leaderObj = category.leaders[0];
+              outputMarkup += `<span style="color: #ffff00;">${catName}:</span> ${leaderObj.athlete ? leaderObj.athlete.displayName : "Player"} (${leaderObj.displayValue})<br>`;
+            }
+          });
+        } 
+        else if (competitorAway.leaders && competitorAway.leaders.length > 0) {
+          outputMarkup = `<div style="font-size: 17px; color: #aaaaaa; margin-bottom: 5px;">SEASON LEADERS</div>`;
+          const awayPointsNode = competitorAway.leaders.find(l => l.name === "points");
+          if (awayPointsNode && awayPointsNode.leaders && awayPointsNode.leaders[0]) {
+            outputMarkup += `<span style="color: ${awayColor};">${awayLabel} PTS:</span> ${awayPointsNode.leaders[0].athlete.shortName} (${awayPointsNode.leaders[0].displayValue})<br>`;
+          }
+          if (competitorHome.leaders) {
+            const homePointsNode = competitorHome.leaders.find(l => l.name === "points");
+            if (homePointsNode && homePointsNode.leaders && homePointsNode.leaders[0]) {
+              outputMarkup += `<span style="color: ${homeColor};">${homeLabel} PTS:</span> ${homePointsNode.leaders[0].athlete.shortName} (${homePointsNode.leaders[0].displayValue})<br>`;
+            }
+          }
+        } else { outputMarkup = "No active leader or goal logs recorded."; }
+        document.getElementById('subStatsLine').innerHTML = outputMarkup;
+      }
+      else if (currentStatsPage === 2) {
+        document.getElementById('statsPageHeader').innerText = "TEAM STATISTICS";
+        let matchSummaryString = "";
+        if (comp.notes && comp.notes.length > 0) matchSummaryString = comp.notes[0].headline;
+        else if (gameItem.status.type.state === "pre") matchSummaryString = `Match scheduled for live presentation inside league pipelines.`;
+        else matchSummaryString = `Completed final match record sheet metrics loop.`;
+        document.getElementById('subStatsLine').innerHTML = `<span style="color: #ffff00;">CONTEXT:</span><br>${matchSummaryString}`;
+      }
+      else if (currentStatsPage === 3) {
+        document.getElementById('statsPageHeader').innerText = "LIVE SUMMARY";
+        document.getElementById('subStatsLine').innerHTML = `
+          <span style="color: #00caff;">VENUE:</span> ${comp.venue ? comp.venue.fullName : "N/A"}<br>
+          <span style="color: #00caff;">LOC:</span>   ${comp.venue && comp.venue.address ? (comp.venue.address.city + ", " + comp.venue.address.state) : "N/A"}<br>
+          <span style="color: #00caff;">TV/NET:</span> ${gameItem.geoBroadcasts && gameItem.geoBroadcasts.length > 0 ? gameItem.geoBroadcasts[0].media.shortName.toUpperCase() : "N/A"}
+        `;
+      }
+    }
+
+    function toggleDigitalZoomState() {
+      const bNode = document.body;
+      if (bNode.classList.contains('standard-zoom')) {
+        bNode.classList.remove('standard-zoom');
+        bNode.classList.add('extreme-zoom');
+      } else {
+        bNode.classList.remove('extreme-zoom');
+        bNode.classList.add('standard-zoom');
+      }
+    }
+
+    function executeEscapeRoute() {
+      if (activeWindow === 'soccerHubView') { changeView('hubView'); }
+      else if (activeWindow === 'ticketView') { if (leagues[currentLeagueIdx] === "soccer") changeView('soccerHubView'); else changeView('hubView'); }
+      else if (activeWindow === 'statsView') { changeView('ticketView'); renderActiveScoreboardItem(); }
+    }
+
+    function inputDispatcher(intent) {
+      if (intent === 'escape') { executeEscapeRoute(); return; }
+      if (intent === 'zoom') { toggleDigitalZoomState(); return; }
+
+      if (activeWindow === 'hubView') {
+        if (intent === 'next') { currentLeagueIdx = (currentLeagueIdx + 1) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
+        if (intent === 'prev') { currentLeagueIdx = (currentLeagueIdx - 1 + leagues.length) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
+        if (intent === 'select') {
+          if (leagues[currentLeagueIdx] === "soccer") { activeSubLeagueIdx = 0; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; changeView('soccerHubView'); }
+          else { fetchLiveLeagueData(); }
+        }
+      }
+      else if (activeWindow === 'soccerHubView') {
+        if (intent === 'next') { activeSubLeagueIdx = (activeSubLeagueIdx + 1) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
+        if (intent === 'prev') { activeSubLeagueIdx = (activeSubLeagueIdx - 1 + soccerLeagues.length) % soccerLeagues.length; document.getElementById('soccerHubLabel').innerText = soccerLeagues[activeSubLeagueIdx].name; }
+        if (intent === 'select') { fetchLiveLeagueData(); }
+      }
+      else if (activeWindow === 'ticketView') {
+        if (intent === 'next') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx + 1) % liveGamesList.length; renderActiveScoreboardItem(); } }
+        if (intent === 'prev') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx - 1 + liveGamesList.length) % liveGamesList.length; renderActiveScoreboardItem(); } }
+        if (intent === 'select') { currentStatsPage = 0; renderRevolvingStatsEngine(); }
+      }
+      else if (activeWindow === 'statsView') {
+        if (intent === 'next') { currentStatsPage = (currentStatsPage + 1) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
+        if (intent === 'prev') { currentStatsPage = (currentStatsPage - 1 + TOTAL_STATS_PAGES) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') inputDispatcher('next');
+      if (e.key === 'ArrowLeft') inputDispatcher('prev');
+      if (e.key === 'ArrowUp') inputDispatcher('escape'); // Up Arrow keyboard fallback
+      if (e.key === 'Enter') inputDispatcher('select');
+      if (e.key === ' ') inputDispatcher('zoom');
+    });
+
+    let startX = 0, startY = 0, lastTapTime = 0;
+    window.addEventListener('touchstart', e => { 
+      startX = e.changedTouches[0].screenX; 
+      startY = e.changedTouches[0].screenY; 
+    });
+    
+    window.addEventListener('touchend', e => {
+      let deltaX = startX - e.changedTouches[0].screenX;
+      let deltaY = startY - e.changedTouches[0].screenY;
+      let currentTime = Date.now();
+      let tapInterval = currentTime - lastTapTime;
+      
+      // Double-tap zoom tracker
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8 && tapInterval > 40 && tapInterval < 300) {
+        lastTapTime = 0;
+        inputDispatcher('zoom');
+        return;
+      }
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) { lastTapTime = currentTime; }
+
+      // 1. VERTICAL SWIPE DETECTION (SWIPE UP TO ESCAPE)
+      if (deltaY > 50 && Math.abs(deltaX) < 30) {
+        if (activeWindow !== 'hubView') {
+          inputDispatcher('escape');
+          return;
+        }
+      }
+
+      // 2. HORIZONTAL SWIPE DETECTION (NEXT / PREV CAROUSEL)
+      if (deltaX > 40 && Math.abs(deltaY) < 30) { 
+        inputDispatcher('next'); 
+      } 
+      else if (deltaX < -40 && Math.abs(deltaY) < 30) { 
+        inputDispatcher('prev'); 
+      } 
+      // 3. UNIVERSAL SCREEN TAP (SELECT / CONFIRM)
+      else if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) {
+        inputDispatcher('select');
+      }
+    });
+  </script>
+</body>
+</html>
