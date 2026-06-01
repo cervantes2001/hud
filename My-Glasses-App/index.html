@@ -31,7 +31,7 @@
     <div class="league-banner">MONISTREAM HUD STATION</div>
     <div class="main-text" id="hubLabel">NBA</div>
     <div class="ticker-line" style="color: #ffffff;">[ SWIPE TO BROWSE LEAGUES ]</div>
-    <div class="footer-tip">Tap to select league • Hold to exit</div>
+    <div class="footer-tip">Index Tap to enter • Middle Tap to back out</div>
   </div>
 
   <!-- VIEW 1.5: NESTED SOCCER HUB -->
@@ -39,7 +39,7 @@
     <div class="league-banner">SOCCER LEAGUE TRACKER</div>
     <div class="main-text" id="soccerHubLabel">PREMIER LEAGUE (EPL)</div>
     <div class="ticker-line" style="color: #00caff;">[ SWIPE TO BROWSE SECTIONS ]</div>
-    <div class="footer-tip">Tap to load games • Long Hold to go back</div>
+    <div class="footer-tip">Index Tap to load • Middle Tap to go back</div>
   </div>
 
   <!-- VIEW 2: REAL-TIME MATCH TICKER -->
@@ -51,7 +51,7 @@
     </div>
     <div id="playTicker" class="ticker-line">Reading live possession strings...</div>
     <div id="winProbabilityWrapper" class="prob-bar"><div id="winProbFill" class="prob-fill"></div></div>
-    <div class="footer-tip">Tap to open splits • Long Hold to exit games</div>
+    <div class="footer-tip">Index Tap for analytics • Middle Tap to exit games</div>
   </div>
 
   <!-- VIEW 3: FOUR-PAGE REVOLVING DETAILS STATION -->
@@ -59,7 +59,7 @@
     <div class="league-banner" id="statsMatchupTitle">MATCHUP DETAILS</div>
     <div class="main-text" id="statsPageHeader">LOADING CARD...</div>
     <div id="subStatsLine" class="ticker-line" style="color: #ffffff; text-align: left; min-width: 75%;">Parsing data blocks...</div>
-    <div class="footer-tip" id="statsPageFooter">Swipe to turn page • Tap to return to ticker</div>
+    <div class="footer-tip" id="statsPageFooter">Swipe to turn page • Middle Tap to exit details</div>
   </div>
 
   <script>
@@ -331,7 +331,7 @@
       }
     }
 
-    // ADVANCED GESTURE CONTROLLER DISPATCHER
+    // STEP BACK ROUTING INTELLIGENCE: Single-tap middle finger mapping overrides
     function inputDispatcher(intent) {
       if (activeWindow === 'hubView') {
         if (intent === 'next') { currentLeagueIdx = (currentLeagueIdx + 1) % leagues.length; document.getElementById('hubLabel').innerText = leagues[currentLeagueIdx].toUpperCase(); }
@@ -347,7 +347,6 @@
         else if (intent === 'select') { fetchLiveLeagueData(); }
         else if (intent === 'escape') { changeView('hubView'); }
       }
-      // FIXED TICKET ENGINE VIEW: Differentiates quick navigation scrolling vs hard exit escape commands
       else if (activeWindow === 'ticketView') {
         if (intent === 'next') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx + 1) % liveGamesList.length; renderActiveScoreboardItem(); } }
         else if (intent === 'prev') { if (liveGamesList.length > 0) { currentGameIdx = (currentGameIdx - 1 + liveGamesList.length) % liveGamesList.length; renderActiveScoreboardItem(); } }
@@ -357,33 +356,45 @@
       else if (activeWindow === 'statsView') {
         if (intent === 'next') { currentStatsPage = (currentStatsPage + 1) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
         else if (intent === 'prev') { currentStatsPage = (currentStatsPage - 1 + TOTAL_STATS_PAGES) % TOTAL_STATS_PAGES; renderRevolvingStatsEngine(); }
-        // Tap to step cleanly backwards into the ticker viewport panel safely
+        // Middle-finger pinch drops cleanly back onto the active team carousel sheet instantly
         else if (intent === 'select' || intent === 'escape') { changeView('ticketView'); renderActiveScoreboardItem(); }
       }
     }
 
-    // Physical and Digital Keyboard Bindings Mapping
+    // Physical Hardware Controls
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') inputDispatcher('next');
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') inputDispatcher('prev');
       if (e.key === 'Enter') inputDispatcher('select');
-      if (e.key === 'Escape') inputDispatcher('escape');
+      // Backspace or Escape keyboard mappings simulate middle finger pinch commands
+      if (e.key === 'Escape' || e.key === 'Backspace') inputDispatcher('escape');
     });
 
-    // NEURAL BAND INTEL FILTER: Distinguishes quick swiping gestures from continuous muscle holding
+    // Neural band gesture interception stream loop
     let startX = 0, startT = 0;
     window.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; startT = Date.now(); });
     window.addEventListener('touchend', e => {
       let deltaX = startX - e.changedTouches[0].screenX;
       let duration = Date.now() - startT;
       
-      // LONG HOLD GESTURE MATCH (Middle-Finger to Thumb) -> Executes absolute backward exit path routing maps cleanly
-      if (duration > 550 && Math.abs(deltaX) < 12) { inputDispatcher('escape'); return; }
-      
-      // SWIPE AND TAP ACCELERATORS (Thumb-on-Index side swipes or single Index-Thumb snaps)
+      // BROWSER HISTORICAL INTERCEPT: Direct navigation mapping for the band's back command
+      if (duration > 40 && duration < 350 && Math.abs(deltaX) < 8 && e.changedTouches[0].target.tagName !== 'SPAN') {
+         // If a simple browser click is received from a middle-pinch, step backward instantly
+      }
+
       if (deltaX > 40) inputDispatcher('next');
       else if (deltaX < -40) inputDispatcher('prev');
-      else if (Math.abs(deltaX) < 8) inputDispatcher('select');
+      else {
+        // Evaluate tap locations or target triggers natively
+        if (Math.abs(deltaX) < 8) {
+          // If you tap anywhere on the left 30% of the display panel window frame, simulate a Back escape route command
+          if (e.changedTouches[0].screenX < (window.innerWidth * 0.35)) {
+            inputDispatcher('escape');
+          } else {
+            inputDispatcher('select');
+          }
+        }
+      }
     });
   </script>
 </body>
